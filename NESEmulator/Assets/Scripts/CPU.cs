@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
-using JetBrains.Annotations;
-using Unity.Mathematics;
-using Unity.Profiling;
-using Unity.VisualScripting;
+
 using UnityEngine;
-using UnityEngine.Assertions.Must;
 
 public class CPU : MonoBehaviour
 {
@@ -27,14 +21,9 @@ public class CPU : MonoBehaviour
     // public List<Instruction> instructions;
     // private LDA LDA = new();
 
-
-    public void OnEnable()
-    {
-        Ticker.OnTick += Step;
-    }
-
     void Start()
     {        
+        Debug.Log(bus == null);
         // instructions.Add(LDA);
 
         // foreach(Instruction instruction in instructions)
@@ -47,12 +36,21 @@ public class CPU : MonoBehaviour
 
 
 
-        ProgramCounter = 0x8000;
+        ProgramCounter = 0x0000; //0x8000
         Accumulator = 0x0000;
         X = 0x0000;
         Y = 0x0000;
         StackPointer = 0xFD;
         StatusRegister = 0b00000100;
+
+        // bus.Write(ProgramCounter , 0xA9);
+        // bus.Write((ushort)(ProgramCounter + 1) , 3);
+
+        // Step();
+
+        // Debug.Log($"Value within Accumulator : {Accumulator}");
+        // Debug.Log($"Value at Program Counter : {ProgramCounter}");
+
     }
 
 
@@ -65,12 +63,16 @@ public class CPU : MonoBehaviour
     public void Step()
     {
                 
+        // Remaining Addressing Modes for LDA, Flags. 
+        // Stack
+        //Remaining Functions 
         byte Opcode = bus.Read(ProgramCounter);
         
         switch(Opcode)
         {
+            // LDA : 
             case 0xA9:
-                Load(ref Accumulator , bus.Read((ushort)(ProgramCounter + 1))); // Immediate
+                Load(ref Accumulator , (ushort)(ProgramCounter + 1)); // Immediate
                 ProgramCounter += 2 ; 
                 //Wait 2 Clock Cycles
                 return;
