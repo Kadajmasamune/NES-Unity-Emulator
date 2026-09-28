@@ -9,6 +9,7 @@ using UnityEngine.Assertions.Must;
 
 public class CPU : MonoBehaviour
 {
+    //Implement Fetch Decode Execute 
     public Bus bus;
 
     public byte Accumulator;
@@ -21,24 +22,37 @@ public class CPU : MonoBehaviour
 
 
 
-    public Dictionary<byte, Instruction> Opcodes = new();
+    // public Dictionary<byte, Instruction> Opcodes = new();
 
-    public List<Instruction> instructions;
+    // public List<Instruction> instructions;
+    // private LDA LDA = new();
 
 
-    private LDA LDA = new();
+    public void OnEnable()
+    {
+        Ticker.OnTick += Step;
+    }
 
-    
     void Start()
     {        
-        instructions.Add(LDA);
+        // instructions.Add(LDA);
 
-        foreach(Instruction instruction in instructions)
-        {
-            instruction.Init(this);
-        }
+        // foreach(Instruction instruction in instructions)
+        // {
+        //     instruction.Init(this);
+        // }
 
-        Opcodes[0xA9] = LDA;
+        // Opcodes[LDA.Opcode] = LDA;
+
+
+
+
+        ProgramCounter = 0x8000;
+        Accumulator = 0x0000;
+        X = 0x0000;
+        Y = 0x0000;
+        StackPointer = 0xFD;
+        StatusRegister = 0b00000100;
     }
 
 
@@ -48,21 +62,29 @@ public class CPU : MonoBehaviour
     }
 
 
-
-}
-
-public class LDA : Instruction
-{
-    public override void Init(CPU _cpu)
+    public void Step()
     {
-        CPU = _cpu;
-        cycles = 2;
-        length = 2;
-        addressingMode = AddressingMode.Immediate;
+                
+        byte Opcode = bus.Read(ProgramCounter);
+        
+        switch(Opcode)
+        {
+            case 0xA9:
+                Load(ref Accumulator , bus.Read((ushort)(ProgramCounter + 1))); // Immediate
+                ProgramCounter += 2 ; 
+                //Wait 2 Clock Cycles
+                return;
+
+            case 0xA5 : 
+                Load(ref Accumulator, bus.Read(bus.Read((ushort)(ProgramCounter + 1))));
+                ProgramCounter += 2 ; 
+                return ; 
+
+        }
     }
 
-    public override void Method()
+    protected void Load(ref byte dst, ushort address) // LDA , LDX , LDY
     {
-        Load(ref CPU.Accumulator , 0x800);
+        dst = bus.Read(address);
     }
 }
