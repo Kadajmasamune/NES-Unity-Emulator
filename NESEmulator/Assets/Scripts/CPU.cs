@@ -1,4 +1,6 @@
 
+using Unity.VisualScripting;
+using Unity.VisualScripting.Antlr3.Runtime;
 using UnityEditor.Scripting;
 using UnityEditor.ShaderGraph;
 using UnityEngine;
@@ -76,6 +78,7 @@ public class CPU : MonoBehaviour
         //Remaining Functions 
         byte Opcode = bus.Read(ProgramCounter);
 
+        //56 Different Instructions, the rest are addressing mode variatns . 
         switch (Opcode)
         {
             // LDA : 
@@ -94,43 +97,58 @@ public class CPU : MonoBehaviour
                 return;
 
 
-            case 0xB5: 
+            case 0xB5:
+
                 // byte value = bus.Read((ushort)((ushort)(ProgramCounter + 1) + X));
                 // if (value > 255)
                 // {
-                    
+
                 // }
 
-                
-                //Research and Implement Wrap arounds (Study what the zero page is too)
-                Load(ref Accumulator , bus.Read((ushort)((ushort)(ProgramCounter + 1) + X))); // Zero Page X 
+
+                ushort baseAddress = bus.Read((ushort)(ProgramCounter + 1)); // The operand of this instruction gives a memory address within the zero page 
+                ushort indexedAddress = (ushort)((ushort)(baseAddress + X) % 256); //Indexed Address i found via adding the X Register and also performing a modulo operation to keep the address between 0-255.
+
+                Load(ref Accumulator, bus.Read(indexedAddress)); // Zero Page X 
                 manageLDAFlags();
                 ProgramCounter += 2;
-                return ; 
-
-
-            case 0xAD : 
-                //Absolute, Absolute x ,y  needs 16 bit address construction. Check this on Wiki . 
-                Load(ref Accumulator , bus.Read((ushort)(ProgramCounter + 1 ))); // Absolute
-                manageLDAFlags();
-                ProgramCounter += 3; 
                 return;
 
-            case 0xBD : 
-                Load(ref Accumulator , bus.Read((ushort)((ushort)(ProgramCounter + 1) + X))); // Absolute X 
+
+            case 0xAD:
+                //Absolute, Absolute x ,y  needs 16 bit address construction. Check this on Wiki . 
+
+                byte lowByte = bus.Read((ushort)(ProgramCounter + 1));
+                byte highByte = bus.Read((ushort)(ProgramCounter + 2));
+                ushort target = (ushort)((highByte << 8) | lowByte);
+
+                Load(ref Accumulator, target); // Absolute
                 manageLDAFlags();
-                ProgramCounter += 3 ;
-                return ; 
+                ProgramCounter += 3;
+                return;
 
-            case 0xB9 : 
-                Load(ref Accumulator , bus.Read((ushort)((ushort)(ProgramCounter + 1) + Y))); // Absolute Y 
-                manageLDAFlags(); 
-                ProgramCounter += 3 ;
-                return ; 
 
-            // case 0xA1 : 
-            //     ushort address = bus.Read((ushort)((ushort)(ProgramCounter + 1) + X));
-            //     Load(ref Accumulator , address);
+            case 0xBD:
+                byte _LowByte = bus.Read((ushort)(ProgramCounter + 1));
+                byte _HighByte = bus.Read((ushort)(ProgramCounter + 2));
+                ushort FinalAddress = (ushort)(((_HighByte << 8) | _LowByte) + X);
+
+                Load(ref Accumulator, FinalAddress); // Absolute X 
+                manageLDAFlags();
+                ProgramCounter += 3;
+                return;
+
+            case 0xB9:
+                ushort address = (ushort)((bus.Read((ushort)(ProgramCounter + 2)) << 8) | (bus.Read((ushort)(ProgramCounter + 1))));
+                ushort indexed = (ushort)(address + Y);
+                Load(ref Accumulator, indexed); // Absolute Y 
+                manageLDAFlags();
+                ProgramCounter += 3;
+                return;
+
+                // case 0xA1 : 
+                //     ushort address = bus.Read((ushort)((ushort)(ProgramCounter + 1) + X));
+                //     Load(ref Accumulator , address);
         }
     }
 
@@ -159,5 +177,187 @@ public class CPU : MonoBehaviour
             ClearFlag(bm_ZeroFlag);
             ClearFlag(bm_NegativeFlag);
         }
+    }
+}
+
+public abstract class instruction
+{
+    // [Opcode][Operands][cycles][Length]
+
+    public byte[] Opcodes; // i.e. LDA has 0xA9 , A5 , B5 , AD , BD, B9 , A1 , B1.
+    public ushort Operands;
+    public AddressingMode addressingMode;
+    public byte cycles;
+    public byte length;
+
+    private CPU _cpu;
+
+    public void GetCPUReference(CPU cpu) => _cpu = cpu;
+
+    public void Execute()
+    {
+        Logic();
+        ManageFlags();
+        appendPC();
+    }
+
+    public ushort deduceOperands()
+    {
+        ushort result = 0;
+
+        switch (addressingMode)
+        {
+            case AddressingMode.Immediate:
+                // Return the address of the immediate value
+                result = (ushort)(_cpu.ProgramCounter + 1);
+                break;
+
+            case AddressingMode.ZeroPage:
+                // Operand itself is the zero-page address
+                result = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1));
+                break;
+
+            case AddressingMode.ZeroPageX:
+                // Zero-page indexing wraps around $FF → $00
+                result = (ushort)(
+                    (_cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1)) + _cpu.X) % 256
+                );
+                break;
+
+            case AddressingMode.ZeroPageY:
+                // Zero-page indexing wraps around $FF → $00
+                result = (ushort)(
+                    (_cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1)) + _cpu.Y) % 256
+                );
+                break;
+
+            case AddressingMode.Abs:
+                {
+                    byte lowByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1));
+                    byte highByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 2));
+
+                    result = (ushort)((highByte << 8) | lowByte);
+                    break;
+                }
+
+            case AddressingMode.AbsX:
+                {
+                    byte lowByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1));
+                    byte highByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 2));
+
+                    ushort baseAddress = (ushort)((highByte << 8) | lowByte);
+
+                    result = (ushort)(baseAddress + _cpu.X);
+                    break;
+                }
+
+            case AddressingMode.AbsY:
+                {
+                    byte lowByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1));
+                    byte highByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 2));
+
+                    ushort baseAddress = (ushort)((highByte << 8) | lowByte);
+
+                    result = (ushort)(baseAddress + _cpu.Y);
+                    break;
+                }
+
+            case AddressingMode.Accumulator:
+                // The operand is the accumulator itself
+                result = _cpu.Accumulator;
+                break;
+
+            case AddressingMode.Implied:
+                // No operand
+                result = 0;
+                break;
+
+            case AddressingMode.Relative:
+                {
+                    // Branch offset is signed 8-bit
+                    sbyte offset = (sbyte)_cpu.bus.Read(
+                        (ushort)(_cpu.ProgramCounter + 1)
+                    );
+
+                    result = (ushort)(_cpu.ProgramCounter + 2 + offset);
+                    break;
+                }
+
+            case AddressingMode.Indirect:
+                {
+                    // First construct the pointer address
+                    byte lowByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 1));
+                    byte highByte = _cpu.bus.Read((ushort)(_cpu.ProgramCounter + 2));
+
+                    ushort pointer = (ushort)((highByte << 8) | lowByte);
+
+                    // Then read the actual target address from that pointer
+                    byte targetLow = _cpu.bus.Read(pointer);
+                    byte targetHigh = _cpu.bus.Read((ushort)(pointer + 1));
+
+                    result = (ushort)((targetHigh << 8) | targetLow);
+                    break;
+                }
+
+            case AddressingMode.IndirectX:
+                {
+                    // (Indirect,X)
+                    byte zeroPageAddress = _cpu.bus.Read(
+                        (ushort)(_cpu.ProgramCounter + 1)
+                    );
+
+                    byte pointer = (byte)(zeroPageAddress + _cpu.X);
+
+                    byte lowByte = _cpu.bus.Read(pointer);
+                    byte highByte = _cpu.bus.Read((byte)(pointer + 1));
+
+                    result = (ushort)((highByte << 8) | lowByte);
+                    break;
+                }
+
+            case AddressingMode.IndirectY:
+                {
+                    // (Indirect),Y
+                    byte zeroPagePointer = _cpu.bus.Read(
+                        (ushort)(_cpu.ProgramCounter + 1)
+                    );
+
+                    byte lowByte = _cpu.bus.Read(zeroPagePointer);
+                    byte highByte = _cpu.bus.Read((byte)(zeroPagePointer + 1));
+
+                    ushort baseAddress = (ushort)((highByte << 8) | lowByte);
+
+                    result = (ushort)(baseAddress + _cpu.Y);
+                    break;
+                }
+        }
+
+        return result;
+    }
+
+
+
+    public abstract void Logic();
+    public abstract void ManageFlags();
+    public abstract void appendPC();
+}
+
+public class i_LDA : instruction
+{
+    
+    // Port the switch case statement above here
+    public override void Logic()
+    {
+        throw new System.NotImplementedException();
+    }
+
+    public override void ManageFlags()
+    {
+        throw new System.NotImplementedException();
+    }
+
+    public override void appendPC()
+    {
+        throw new System.NotImplementedException();
     }
 }
