@@ -311,6 +311,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1832678917}
   - component: {fileID: 1832678916}
+  - component: {fileID: 1832678918}
   m_Layer: 0
   m_Name: CPU
   m_TagString: Untagged
@@ -330,12 +331,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e3d956da31d82be4aa5826d27c0318f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CPU
+  bus: {fileID: 1832678918}
   Accumulator: 0
   X: 0
   Y: 0
   StackPointer: 0
-  StatusRegister: 0
   ProgramCounter: 0
+  StatusRegister: 0
+  autoRun: 0
+  clockHz: 1789773
 --- !u!4 &1832678917
 Transform:
   m_ObjectHideFlags: 0
@@ -351,6 +355,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 329222212}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1832678918
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1832678915}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d454658ecd2ba54c8215ca6316ccbc9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Bus
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

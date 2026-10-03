@@ -1,6 +1,6 @@
+using UnityEngine;
 
-
-public class ROM
+public class ROM : MonoBehaviour
 {
-        
+    
 }
